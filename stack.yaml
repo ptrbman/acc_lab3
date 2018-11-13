@@ -1,46 +1,213 @@
-heat_template_version: 2013-05-23
+heat_template_version: 2015-04-30
 
-description: Template for ACC lab 3
+description: ACC Lab 3 configuration
 
+# Declare parameters 
 parameters:
+
   image:
     type: string
     label: Image name or ID
     description: Image to be used for compute instance
     default: 4957f15b-e1c9-453e-8940-ca0b10a629c3
+
   flavor:
     type: string
     label: Flavor
     description: Type of instance (flavor) to be used
     default: ACCHT18.normal
-  key:
-    type: string
-    label: Key name
-    description: Name of key-pair to be used for compute instance
-    default: ptr
+
   public_network:
     type: string
     label: Public network name or ID
-    description: Network to attach instance to.
-    default: SNIC 2018/10-30 Internal IPv4 Network
+    description: Public network with floating IP addresses.
+    default: Public External IPv4 Network
 
+  hello_string:
+    type: string
+    description: Greeting
+    default: Hello! How are you today?
+
+  ptr_key:
+    type: string
+    description: my public key
+    default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDS/HhtiIYCDXkI1oHNqtLDUqlyezk5Ia7i/ELcAWMif7mh6ev4a/l8pAh6qvKR3MN0K54q+oDFdheDzfDQ09IKToJBbjVCNpwSTQYiGc2dRJIgBTHbCd7BUX/ZZ47n7SDcJRNXT7Bsx1pvodNFRW0Wj/BEIMCD9z152vReiXZ4cg6Q6MzUIVl39oybL4j6k9cfUe1zH+YPInTs04GumHgIM0bYhGdR1VGTNQQxse45qn3IngusnQbfT2S7/w2Z5gB9PPzed5nFar7yCWYyblE526SBsmyNDp0pm+Ys+mdb5epjPVfQse6DJOc+EJVM6L2TN/3fNMAx9BkzxbFe63qj ptr@thoughtfrog"
+    
+  key:
+    type: string
+    description: Name of key-pair to be used for compute instance
+    default: ptr
+
+  volume:
+    type: string
+    description: ID of data volume
+    default: 3419af02-4d0f-4a76-9cab-337ff1d196fe
+    
+# Resource allocation
 resources:
+  security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: security_group
+      rules:
+        - protocol: icmp
+        - protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+        - protocol: tcp # HTTP
+          port_range_min: 80
+          port_range_max: 80
+        - protocol: tcp # FLASK
+          port_range_min: 5000
+          port_range_max: 5000
+        - protocol: tcp # FLOWER
+          port_range_min: 5555
+          port_range_max: 5555
+
+  private_network:
+    type: OS::Neutron::Net
+
+  private_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network_id: { get_resource: private_network }
+      cidr: 10.10.10.0/24
+      dns_nameservers:
+        - 130.238.164.6 
+        - 130.238.4.133 
+        - 130.238.7.10
+        - 130.239.1.90
+        - 129.16.1.53
+  router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info:
+        network: { get_param: public_network }
+
+  router-interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: router }
+      subnet: { get_resource: private_subnet }
+
+  port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_resource: private_network }
+      security_groups:
+        - { get_resource: security_group }
+
+  instance:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      key_name : { get_param: key }
+      networks:
+        - port: { get_resource: port }
+      user_data:
+        str_replace: 
+          template: |
+            #!/bin/bash
+            cd /home/ubuntu
+            echo "cd /home/ubuntu" >> work
+            apt update
+            echo "apt update" >> work
+            apt install -y python3-pip
+            echo "apt install -y python3-pip" >> work
+            apt install -y rabbitmq-server
+            echo "apt install -y rabbitmq-server" >> work
+            apt install -y python3-venv
+            echo "apt install -y python3-venv" >> work
+
+            ## RabbitMQ
+            rabbitmqctl add_user myuser mypassword
+            echo "rabbitmqctl add_user myuser mypassword" >> work
+            rabbitmqctl add_vhost myvhost
+            echo "rabbitmqctl add_vhost myvhost" >> work
+            rabbitmqctl set_user_tags myuser mytag
+            echo "rabbitmqctl set_user_tags myuser mytag" >> work
+            rabbitmqctl set_permissions -p myvhost myuser ".*" ".*" ".*"
+
+            ## Volume
+            mkdir /mnt/data
+            echo "mkdir /mnt/data" >> work
+            mount /dev/vdb /mnt/data
+            echo "mount /dev/vdb /mnt/data" >> work
+            ln -s /mnt/data /home/ubuntu/data
+            echo "ln -s /mnt/data /home/ubuntu/data" >> work
+
+            ## Task (CELERY)
+            wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/task.py
+            echo "wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/task.py" >> work
+
+            python -m venv pycelery
+            echo "python -m venv pycelery" >> work
+            source pycelery/bin/activate
+            echo "source pycelery/bin/activate" >> work
+            pip install celery
+            echo "pip install celery" >> work
+            celery -A task --detach worker --loglevel=info
+            echo "celery -A task --detach worker --loglevel=info" >> work
+
+            ## Web API
+            python -m venv pyflask
+            echo "python -m venv pyflask" >> work
+            source pyflask/bin/activate
+            echo "source pyflask/bin/activate" >> work
+            pip install flask
+            echo "pip install flask" >> work
+            wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/web.py
+            echo "wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/web.py" >> work
+            python web.py
+            echo "python web.py" >> work
+
+            ## FLOWER
+            python -m venv pyflower
+            echo "python -m venv pyflower" >> work
+            source pyflower/bin/activate
+            echo "source pyflower/bin/activate" >> work
+            pip install flower
+            echo "pip install flower" >> work
+            celery flower
+            echo "celery flower" >> work
+
+            ## HELLO
+            echo "$hello_string" > hello
+
+          params:
+            $ptr_key: { get_param: ptr_key }
+            $hello_string: { get_param: hello_string }
+
+  vol_att:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      instance_uuid: { get_resource: instance }
+      volume_id: { get_param: volume }
+      mountpoint: /dev/vdb
 
   floating_ip:
     type: OS::Neutron::FloatingIP
     properties:
       floating_network: { get_param: public_network }
-      
-  my_instance:
-    type: OS::Nova::Server
-    properties:
-      image: { get_param: image }
-      flavor: { get_param: flavor }
-      key_name: { get_param: key }
-      networks:
-        - network: { get_param: public_network }
 
+  floating_ip_assoc:
+    type: OS::Neutron::FloatingIPAssociation
+    properties:
+      floatingip_id: { get_resource: floating_ip }
+      port_id: { get_resource: port }
+
+
+# Output in case of successful booting
 outputs:
+  instance_name:
+    description: Name of the instance
+    value: { get_attr: [instance, name] }
+
   instance_ip:
-    description: IP address of the instance
-    value: { get_attr: [my_instance, first_address] }
+    description: IP address of the master instance
+    value: { get_attr: [instance, first_address] }
+
+  instance_floating_ip:
+    description: Floating IP address of the master instance
+    value: { get_attr: [floating_ip, floating_ip_address] } 

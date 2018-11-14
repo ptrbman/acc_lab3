@@ -134,43 +134,39 @@ resources:
             echo "mkdir /mnt/data" >> work
             mount /dev/vdb /mnt/data
             echo "mount /dev/vdb /mnt/data" >> work
-            ln -s /mnt/data /home/ubuntu/data
+            ln -s /mnt/data/data /home/ubuntu/data
             echo "ln -s /mnt/data /home/ubuntu/data" >> work
 
+
+            ## Python Virtual Environment
+            python3 -m venv pyenv
+            echo "python3 -m venv pyenv" >> work
+            source pyenv/bin/activate
+            echo "source pyenv/bin/activate" >> work            
+            
             ## Task (CELERY)
             wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/task.py
             echo "wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/task.py" >> work
-
-            python -m venv pycelery
-            echo "python -m venv pycelery" >> work
-            source pycelery/bin/activate
-            echo "source pycelery/bin/activate" >> work
             pip install celery
             echo "pip install celery" >> work
             celery -A task --detach worker --loglevel=info
             echo "celery -A task --detach worker --loglevel=info" >> work
 
             ## Web API
-            python -m venv pyflask
-            echo "python -m venv pyflask" >> work
-            source pyflask/bin/activate
-            echo "source pyflask/bin/activate" >> work
             pip install flask
             echo "pip install flask" >> work
             wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/web.py
             echo "wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/web.py" >> work
-            python web.py
-            echo "python web.py" >> work
+            python web.py &
+            echo "python web.py &" >> work
 
             ## FLOWER
-            python -m venv pyflower
-            echo "python -m venv pyflower" >> work
-            source pyflower/bin/activate
-            echo "source pyflower/bin/activate" >> work
+            echo "asd" >> asd
             pip install flower
+            echo "dsa" >> dsa            
             echo "pip install flower" >> work
-            celery flower
-            echo "celery flower" >> work
+            celery flower &
+            echo "celery flower &" >> work
 
             ## HELLO
             echo "$hello_string" > hello

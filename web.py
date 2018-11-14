@@ -9,6 +9,23 @@ results = []
 app = Flask(__name__)
 
 
+@app.route('/restart', methods=['GET'])
+def restart():
+    complete = True
+    for r in results:
+        if not r.ready():
+            complete = False
+    if complete:
+        import os
+        for f in os.listdir(BASEDIR):
+            fname = os.path.join(BASEDIR, f)
+            res = processFile.delay(fname)        
+            results = []
+            results.append(res)
+        return("Restarted")
+    else:
+        return("Not done yet...")
+
 @app.route('/done', methods=['GET'])
 def done():
     doneCount = 0
@@ -46,7 +63,6 @@ def get_tasks():
 
 def start():
     import os
-    wordCounts = {}
     for f in os.listdir(BASEDIR):
         fname = os.path.join(BASEDIR, f)
         res = processFile.delay(fname)

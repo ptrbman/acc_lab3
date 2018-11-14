@@ -32,7 +32,7 @@ def done(id):
         output += r.state + "<br>"
         if not (r.state == "SUCCESS"):
             allDone = False
-    result = { 'done' = allDone }
+    result = { 'done' : allDone }
     return(str(dumps(result)))
 
 @app.route('/results/<string:id>', methods=['GET'])

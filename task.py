@@ -1,7 +1,7 @@
 from celery import Celery
 import json
 
-app = Celery('task', backend='amqp', broker='amqp://')
+app = Celery('task', backend='redis://', broker='amqp://')
 BASEDIR = "testdata/"
 
 

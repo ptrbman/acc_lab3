@@ -2,17 +2,12 @@
 from flask import Flask, jsonify
 from task import processFile
 from task import keywords
+import task
+import celery
 
 BASEDIR="data/"
-results = []
-
-            
-# CELERY_URL = "amqp://localhost"
-# CELERY_BACKEND = os.environ['CELERY_RESULT_BACKEND']        
 
 app = Flask(__name__)
-# celery_app = celery.Celery(
-#     "task", broker=CELERY_URL)
 
 @app.route('/start', methods=['GET'])
 def start():
@@ -20,53 +15,44 @@ def start():
     tasks = []
     for f in os.listdir(BASEDIR):
         fname = os.path.join(BASEDIR, f)
-        res = processFile.delay(fname)        
+        res = processFile.s(fname)        
         tasks.append(res)
     group = celery.group(tasks)()
     group.save()
     return(str(group))
 
-@app.route('/done', methods=['GET'])
-def done():
-    doneCount = 0
-    output = "<table><tr>"
-    for r in results:
-        if r.ready():
-            output += "<tr><td>" + str(r) + "</td><td>RDY</td></tr>"
-            doneCount += 1
-        else:
-            output += "<tr><td>" + str(r) + "</td><td>PND</td></tr>"            
+@app.route('/done/<string:id>', methods=['GET'])
+def done(id):
+    group = task.app.GroupResult.restore(id)
+    output = ""
+    allDone = True
+    for r in group:
+        output += r.state + "<br>"
+        if not (r.state == "SUCCESS"):
+            allDone = False
+    if allDone:
+        return("True")
+    else:
+        return("False")
 
-    header = "<h1>" + str(doneCount) + "/" + str(len(results)) + "</h1>"
-    return(header + "<br>" + output)
-
-@app.route('/results', methods=['GET'])
-def get_tasks():
-    completed = True
+    @app.route('/results/<string:id>', methods=['GET'])
+def get_tasks(id):
+    group = task.app.GroupResult.restore(id)
     total = {}
-    for r in results:
-        if r.ready():
+    for r in group:
+        print(r)
+        if r.state == "SUCCESS":
+            print("\tReady")
             counts = r.get()
             for k in keywords:
                 total[k] = total.get(k, 0) + counts.get(k, 0)
-        else:
-            completed = False
 
     table = "<table>"
     for k in keywords:
         table += "<tr><td>" + k + "</td><td>" + str(total.get(k,0)) + "</td></tr>"
     table += "</table>"
-    if completed:
-        return("<h1>DONE!</h1><br>" + table)
-    else:
-        return("<h1>Pending...</h1><br>" + table)    
 
-def start():
-    import os
-    for f in os.listdir(BASEDIR):
-        fname = os.path.join(BASEDIR, f)
-        res = processFile.delay(fname)
-        results.append(res)
+    return(table)
 
 
 if __name__ == '__main__':

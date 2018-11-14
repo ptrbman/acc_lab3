@@ -137,6 +137,13 @@ resources:
             ln -s /mnt/data/data /home/ubuntu/data
             echo "ln -s /mnt/data /home/ubuntu/data" >> work
 
+            wget http://download.redis.io/redis-stable.tar.gz
+            tar xvzf redis-stable.tar.gz
+            cd redis-stable
+            make
+            make install
+            cd ..
+            redis-server &
 
             ## Python Virtual Environment
             python3 -m venv pyenv
@@ -149,6 +156,8 @@ resources:
             echo "wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/task.py" >> work
             pip install celery
             echo "pip install celery" >> work
+            pip install redis
+            echo "pip install redis" >> work            
             celery -A task --detach worker --loglevel=info
             echo "celery -A task --detach worker --loglevel=info" >> work
 
@@ -167,6 +176,8 @@ resources:
             echo "pip install flower" >> work
             celery flower &
             echo "celery flower &" >> work
+
+            
 
             ## HELLO
             echo "$hello_string" > hello

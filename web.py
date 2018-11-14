@@ -35,7 +35,7 @@ def done(id):
     else:
         return("False")
 
-    @app.route('/results/<string:id>', methods=['GET'])
+@app.route('/results/<string:id>', methods=['GET'])
 def get_tasks(id):
     group = task.app.GroupResult.restore(id)
     total = {}

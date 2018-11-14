@@ -278,6 +278,7 @@ resources:
 
                 echo "export CELERY_BROKER=\"amqp://myuser:mypassword@$MASTER_IP\"" > environment.sh
                 echo "export CELERY_BACKEND=\"redis://$MASTER_IP\"" >> environment.sh
+                echo "export MASTER_IP=\"$MASTER_IP\"" >> environment.sh                
 
                 source environment.sh
                 
@@ -288,7 +289,7 @@ resources:
                 source pycelery/bin/activate
                 pip install celery[redis]
                 wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/task.py
-                celery -A task worker
+                celery -A task -f celery.log worker
                 
               params:
                 $NONCE: { get_resource: name_nonce }

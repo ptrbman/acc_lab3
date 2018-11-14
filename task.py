@@ -2,9 +2,9 @@ from celery import Celery
 import json
 import os
 
+MASTER_IP = os.environ['MASTER_IP']
 BACKEND = os.environ['CELERY_BACKEND']
 BROKER = os.environ['CELERY_BROKER']
-
 
 app = Celery('task', backend=BACKEND, broker=BROKER)
 BASEDIR = "testdata/"
@@ -19,6 +19,7 @@ def analyze(text, wordCounts):
 
 @app.task            
 def processFile(fname):
+    os.system('scp "%s:%s" "%s"' % (fname, MASTER_IP, fname) )
     wordCounts = {}
     f = open(fname, "r")
     for l in f:

@@ -6,25 +6,25 @@ from task import keywords
 BASEDIR="data/"
 results = []
 
+            
+# CELERY_URL = "amqp://localhost"
+# CELERY_BACKEND = os.environ['CELERY_RESULT_BACKEND']        
+
 app = Flask(__name__)
+# celery_app = celery.Celery(
+#     "task", broker=CELERY_URL)
 
-
-@app.route('/restart', methods=['GET'])
-def restart():
-    complete = True
-    for r in results:
-        if not r.ready():
-            complete = False
-    if complete:
-        import os
-        for f in os.listdir(BASEDIR):
-            fname = os.path.join(BASEDIR, f)
-            res = processFile.delay(fname)        
-            results.clear()
-            results.append(res)
-        return("Restarted")
-    else:
-        return("Not done yet...")
+@app.route('/start', methods=['GET'])
+def start():
+    import os
+    tasks = []
+    for f in os.listdir(BASEDIR):
+        fname = os.path.join(BASEDIR, f)
+        res = processFile.delay(fname)        
+        tasks.append(res)
+    group = celery.group(tasks)()
+    group.save()
+    return(str(group))
 
 @app.route('/done', methods=['GET'])
 def done():
@@ -70,5 +70,4 @@ def start():
 
 
 if __name__ == '__main__':
-    start()
     app.run(host="0.0.0.0",port=80,debug=True)

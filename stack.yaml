@@ -5,16 +5,16 @@ description: ACC Lab 3 configuration
 # Declare parameters 
 parameters:
 
-  image:
+  master_image:
     type: string
     label: Image name or ID
-    description: Image to be used for compute instance
+    description: Image to be used for compute master
     default: 4957f15b-e1c9-453e-8940-ca0b10a629c3
 
-  flavor:
+  master_flavor:
     type: string
     label: Flavor
-    description: Type of instance (flavor) to be used
+    description: Type of master (flavor) to be used
     default: ACCHT18.normal
 
   public_network:
@@ -27,24 +27,49 @@ parameters:
     type: string
     description: Greeting
     default: Hello! How are you today?
-
-  ptr_key:
-    type: string
-    description: my public key
-    default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDS/HhtiIYCDXkI1oHNqtLDUqlyezk5Ia7i/ELcAWMif7mh6ev4a/l8pAh6qvKR3MN0K54q+oDFdheDzfDQ09IKToJBbjVCNpwSTQYiGc2dRJIgBTHbCd7BUX/ZZ47n7SDcJRNXT7Bsx1pvodNFRW0Wj/BEIMCD9z152vReiXZ4cg6Q6MzUIVl39oybL4j6k9cfUe1zH+YPInTs04GumHgIM0bYhGdR1VGTNQQxse45qn3IngusnQbfT2S7/w2Z5gB9PPzed5nFar7yCWYyblE526SBsmyNDp0pm+Ys+mdb5epjPVfQse6DJOc+EJVM6L2TN/3fNMAx9BkzxbFe63qj ptr@thoughtfrog"
     
   key:
     type: string
-    description: Name of key-pair to be used for compute instance
+    description: Name of key-pair to be used for compute master
     default: ptr
 
   volume:
     type: string
     description: ID of data volume
     default: 3419af02-4d0f-4a76-9cab-337ff1d196fe
+
+  slave_count:
+    type: number
+    label: Slave Count
+    description: Number of slaves
+    default: 2
+
+  slave_image:
+    type: string
+    label: Image name or ID
+    description: Image to be used for compute master
+    default: 4957f15b-e1c9-453e-8940-ca0b10a629c3
+
+  slave_flavor:
+    type: string
+    label: Flavor
+    description: Type of master (flavor) to be used
+    default: ACCHT18.normal
     
 # Resource allocation
 resources:
+  name_nonce:
+    type: OS::Heat::RandomString
+    properties:
+      length: 8
+      sequence: lowercase
+
+  generated_key_pair:
+    type: OS::Nova::KeyPair
+    properties:
+      name: generated key pair
+      save_private_key: True
+      
   security_group:
     type: OS::Neutron::SecurityGroup
     properties:
@@ -63,6 +88,15 @@ resources:
         - protocol: tcp # FLOWER
           port_range_min: 5555
           port_range_max: 5555
+        - protocol: tcp # RABBITMQ
+          port_range_min: 5672
+          port_range_max: 5672
+
+  allow_self_rule:
+    type: OS::Neutron::SecurityGroupRule
+    properties:
+      security_group: { get_resource: security_group }
+      remote_group: { get_resource: security_group }          
 
   private_network:
     type: OS::Neutron::Net
@@ -90,25 +124,30 @@ resources:
       router_id: { get_resource: router }
       subnet: { get_resource: private_subnet }
 
-  port:
+  master_port:
     type: OS::Neutron::Port
     properties:
       network: { get_resource: private_network }
       security_groups:
         - { get_resource: security_group }
 
-  instance:
+  master:
     type: OS::Nova::Server
     properties:
-      image: { get_param: image }
-      flavor: { get_param: flavor }
+      image: { get_param: master_image }
+      flavor: { get_param: master_flavor }
       key_name : { get_param: key }
       networks:
-        - port: { get_resource: port }
+        - port: { get_resource: master_port }
       user_data:
         str_replace: 
           template: |
             #!/bin/bash
+            
+            ## KEYS
+            echo "$private_key" > /home/ubuntu/.ssh/id_rsa
+            echo "$public_key" >> /home/ubuntu/.ssh/authorized_keys
+            
             cd /home/ubuntu
             echo "cd /home/ubuntu" >> work
             apt update
@@ -123,11 +162,7 @@ resources:
             ## RabbitMQ
             rabbitmqctl add_user myuser mypassword
             echo "rabbitmqctl add_user myuser mypassword" >> work
-            rabbitmqctl add_vhost myvhost
-            echo "rabbitmqctl add_vhost myvhost" >> work
-            rabbitmqctl set_user_tags myuser mytag
-            echo "rabbitmqctl set_user_tags myuser mytag" >> work
-            rabbitmqctl set_permissions -p myvhost myuser ".*" ".*" ".*"
+            rabbitmqctl set_permissions myuser ".*" ".*" ".*"
 
             ## Volume
             mkdir /mnt/data
@@ -137,6 +172,9 @@ resources:
             ln -s /mnt/data/data /home/ubuntu/data
             echo "ln -s /mnt/data /home/ubuntu/data" >> work
 
+            ## NFS
+            apt install -y nfs-kernel-server
+            
             wget http://download.redis.io/redis-stable.tar.gz
             tar xvzf redis-stable.tar.gz
             cd redis-stable
@@ -183,13 +221,14 @@ resources:
             echo "$hello_string" > hello
 
           params:
-            $ptr_key: { get_param: ptr_key }
+            $private_key: { get_attr: [generated_key_pair, private_key] }
+            $public_key: { get_attr: [generated_key_pair, public_key] }                        
             $hello_string: { get_param: hello_string }
 
   vol_att:
     type: OS::Cinder::VolumeAttachment
     properties:
-      instance_uuid: { get_resource: instance }
+      instance_uuid: { get_resource: master }
       volume_id: { get_param: volume }
       mountpoint: /dev/vdb
 
@@ -202,19 +241,76 @@ resources:
     type: OS::Neutron::FloatingIPAssociation
     properties:
       floatingip_id: { get_resource: floating_ip }
-      port_id: { get_resource: port }
+      port_id: { get_resource: master_port }
+
+  slaveresources:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: { get_param: slave_count }
+      resource_def:
+        type: OS::Nova::Server
+        properties:
+          key_name: { get_param: key }
+          image: { get_param: slave_image }
+          flavor: { get_param: slave_flavor }
+          name:
+            str_replace:
+              template: slave-$NONCE-%index%
+              params:
+                $NONCE: { get_resource: name_nonce }
+          networks: [{network: { get_resource: private_network }}]
+          user_data:
+            str_replace:
+              
+              template: |
+                #!/bin/bash
+                cd /home/ubuntu
+                ## KEYS
+                echo "$private_key" > /home/ubuntu/.ssh/id_rsa
+                echo "$public_key" >> /home/ubuntu/.ssh/authorized_keys
+
+                echo "export CELERY_BROKER=\"amqp://myuser:mypassword@$MASTER_IP\"" > environment.sh
+                echo "export CELERY_BACKEND=\"redis://$MASTER_IP\"" >> environment.sh
+                echo "export MASTER_IP=$MASTER_IP\"" >> environment.sh                
+
+                source environment.sh
+                
+                apt update
+                apt install -y python3-pip
+                apt install -y python3-venv
+                python3 -m venv pycelery
+                source pycelery/bin/activate
+                pip install celery[redis]
+                wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/task.py
+                celery -A task worker
+                
+              params:
+                $NONCE: { get_resource: name_nonce }
+                $MASTER_IP : { get_attr: [master, first_address] }
+                $private_key: { get_attr: [generated_key_pair, private_key] }
+                $public_key: { get_attr: [generated_key_pair, public_key] }                                        
+                            
 
 
 # Output in case of successful booting
 outputs:
-  instance_name:
-    description: Name of the instance
-    value: { get_attr: [instance, name] }
+  master_name:
+    description: Name of the master
+    value: { get_attr: [master, name] }
 
-  instance_ip:
-    description: IP address of the master instance
-    value: { get_attr: [instance, first_address] }
+  master_ip:
+    description: IP address of the master master
+    value: { get_attr: [master, first_address] }
 
-  instance_floating_ip:
-    description: Floating IP address of the master instance
+  master_floating_ip:
+    description: Floating IP address of the master master
     value: { get_attr: [floating_ip, floating_ip_address] } 
+
+
+  worker_ips:
+    description: Internal Addresses of the workers
+    value: { get_attr: [slaveresources, first_address] }
+
+  worker_names:
+    description: Internal Addresses of the workers
+    value: { get_attr: [slaveresources, name] }    

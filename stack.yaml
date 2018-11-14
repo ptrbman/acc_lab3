@@ -159,6 +159,13 @@ resources:
             apt install -y python3-venv
             echo "apt install -y python3-venv" >> work
 
+
+            echo "export CELERY_BROKER=\"amqp://myuser:mypassword@localhost\"" > environment.sh
+            echo "export CELERY_BACKEND=\"redis://localhost\"" >> environment.sh
+
+            source environment.sh
+
+            
             ## RabbitMQ
             rabbitmqctl add_user myuser mypassword
             echo "rabbitmqctl add_user myuser mypassword" >> work
@@ -271,7 +278,6 @@ resources:
 
                 echo "export CELERY_BROKER=\"amqp://myuser:mypassword@$MASTER_IP\"" > environment.sh
                 echo "export CELERY_BACKEND=\"redis://$MASTER_IP\"" >> environment.sh
-                echo "export MASTER_IP=$MASTER_IP\"" >> environment.sh                
 
                 source environment.sh
                 

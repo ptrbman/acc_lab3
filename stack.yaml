@@ -42,7 +42,7 @@ parameters:
     type: number
     label: Slave Count
     description: Number of slaves
-    default: 4
+    default: 1
 
   slave_image:
     type: string
@@ -203,8 +203,8 @@ resources:
             echo "pip install celery" >> work
             pip install redis
             echo "pip install redis" >> work            
-            celery -A task --detach worker --loglevel=info
-            echo "celery -A task --detach worker --loglevel=info" >> work
+            # celery -A task --detach worker --loglevel=info
+            # echo "celery -A task --detach worker --loglevel=info" >> work
 
             ## Web API
             pip install flask

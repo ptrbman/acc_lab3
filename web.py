@@ -1,4 +1,4 @@
-#!flask/bin/python
+ #!flask/bin/python
 from flask import Flask, jsonify
 from task import processFile
 from task import keywords
@@ -20,7 +20,7 @@ def restart():
         for f in os.listdir(BASEDIR):
             fname = os.path.join(BASEDIR, f)
             res = processFile.delay(fname)        
-            results = []
+            results.clear()
             results.append(res)
         return("Restarted")
     else:

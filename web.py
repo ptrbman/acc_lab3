@@ -20,7 +20,8 @@ def start():
         tasks.append(res)
     group = celery.group(tasks)()
     group.save()
-    return(str(group))
+    result = { 'id' : str(group) }
+    return(str(dumps(result)))
 
 @app.route('/done/<string:id>', methods=['GET'])
 def done(id):
@@ -31,10 +32,8 @@ def done(id):
         output += r.state + "<br>"
         if not (r.state == "SUCCESS"):
             allDone = False
-    if allDone:
-        return("True")
-    else:
-        return("False")
+    result = { 'done' = allDone }
+    return(str(dumps(result)))
 
 @app.route('/results/<string:id>', methods=['GET'])
 def get_tasks(id):

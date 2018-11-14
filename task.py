@@ -24,5 +24,6 @@ def processFile(fname):
     for l in f:
         if l.strip() != "":
             js = json.loads(l)
-            analyze(js['text'], wordCounts)
+            if js['retweeted'] == False:
+                analyze(js['text'], wordCounts)
     return wordCounts

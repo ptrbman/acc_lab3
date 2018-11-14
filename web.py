@@ -4,6 +4,7 @@ from task import processFile
 from task import keywords
 import task
 import celery
+import json
 
 BASEDIR="data/"
 
@@ -47,12 +48,12 @@ def get_tasks(id):
             for k in keywords:
                 total[k] = total.get(k, 0) + counts.get(k, 0)
 
-    table = "<table>"
     for k in keywords:
-        table += "<tr><td>" + k + "</td><td>" + str(total.get(k,0)) + "</td></tr>"
-    table += "</table>"
+        if total.get(k,0) == 0:
+            total[k] = 0
 
-    return(table)
+    resultJson = json.dumps(total)
+    return(str(resultJson))
 
 
 def trial():

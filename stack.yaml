@@ -42,7 +42,7 @@ parameters:
     type: number
     label: Slave Count
     description: Number of slaves
-    default: 2
+    default: 4
 
   slave_image:
     type: string

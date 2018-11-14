@@ -55,5 +55,17 @@ def get_tasks(id):
     return(table)
 
 
+def trial():
+    import os
+    tasks = []
+    for f in os.listdir(BASEDIR):
+        fname = os.path.join(BASEDIR, f)
+        res = processFile.s(fname)
+        tasks.append(res)
+    group = celery.group(tasks)()
+    group.save()
+    return(group)
+
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0",port=80,debug=True)

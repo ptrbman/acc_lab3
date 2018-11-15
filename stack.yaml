@@ -91,6 +91,9 @@ resources:
         - protocol: tcp # RABBITMQ
           port_range_min: 5672
           port_range_max: 5672
+        - protocol: tcp # REDIS
+          port_range_min: 6379
+          port_range_max: 6379          
 
   allow_self_rule:
     type: OS::Neutron::SecurityGroupRule
@@ -162,6 +165,7 @@ resources:
 
             echo "export CELERY_BROKER=\"amqp://myuser:mypassword@localhost\"" > environment.sh
             echo "export CELERY_BACKEND=\"redis://localhost\"" >> environment.sh
+            echo "export MASTER_IP=\"localhost\"" >> environment.sh                            
 
             source environment.sh
 
@@ -188,7 +192,7 @@ resources:
             make
             make install
             cd ..
-            redis-server &
+            redis-server --protected-mode no &
 
             ## Python Virtual Environment
             python3 -m venv pyenv
@@ -285,12 +289,21 @@ resources:
                 apt update
                 apt install -y python3-pip
                 apt install -y python3-venv
+
+                ## Get data
+                touch downloading
+                chmod 600 /home/ubuntu/.ssh/id_rsa
+                
+                echo "scp -i /home/ubuntu/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP:/mnt/data/data.tar.gz ." >> down
+                scp -i /home/ubuntu/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP:/mnt/data/data.tar.gz . >> error
+                tar xvzf data.tar.gz
+
                 python3 -m venv pycelery
                 source pycelery/bin/activate
                 pip install celery[redis]
                 wget https://raw.githubusercontent.com/ptrbman/acc_lab3/master/task.py
                 celery -A task -f celery.log worker
-                
+
               params:
                 $NONCE: { get_resource: name_nonce }
                 $MASTER_IP : { get_attr: [master, first_address] }

@@ -1,6 +1,15 @@
 create-stack:
 	openstack stack create -t stack.yaml ptr-stack
 
+create-min-stack:
+	openstack stack create -t stack.yaml --parameter slave_count=0 ptr-stack
+
+create-full-stack:
+	openstack stack create -t stack.yaml --parameter slave_count=10 ptr-stack
+
+worker-0:
+	openstack stack update -t stack.yaml --parameter slave_count=0 ptr-stack
+
 worker-1:
 	openstack stack update -t stack.yaml --parameter slave_count=1 ptr-stack
 

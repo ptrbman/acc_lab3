@@ -26,10 +26,8 @@ def start():
 @app.route('/done/<string:id>', methods=['GET'])
 def done(id):
     group = task.app.GroupResult.restore(id)
-    output = ""
     allDone = True
     for r in group:
-        output += r.state + "<br>"
         if not (r.state == "SUCCESS"):
             allDone = False
     result = { 'done' : allDone }

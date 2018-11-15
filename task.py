@@ -17,9 +17,8 @@ def analyze(text, wordCounts):
         if word in keywords:
             wordCounts[word] = wordCounts.get(word, 0) + 1
 
-@app.task            
+@app.task(retry_backoff=True)
 def processFile(fname):
-    os.system('scp "%s:%s" "%s"' % (fname, MASTER_IP, fname) )
     wordCounts = {}
     f = open(fname, "r")
     for l in f:
